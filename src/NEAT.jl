@@ -63,8 +63,9 @@ end
 
 # モデルに入力を入れて計算する
 function (model::Model{T})(input::Array{T, 1}) where T <: Number
+    reset!(model)
     middlenode_ids = []
-
+    
     # InputNodeからの出力を計算
     for i in 1:model.input_size
         model.nodes[i].state = input[i]
