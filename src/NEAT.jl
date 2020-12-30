@@ -34,7 +34,7 @@ mutable struct Model{T<:Number}
 end
 
 # モデルを作る
-function Model(input_size::Int, output_size::Int; T=Float32, rate=0.5, rng=MersenneTwister())
+function Model(input_size::Int, output_size::Int; T=Float64, rate=0.5, rng=MersenneTwister())
     nodes = Array{Node, 1}()
     nodes_num = input_size + output_size
     weights_num = 0
@@ -62,9 +62,9 @@ function Model(input_size::Int, output_size::Int; T=Float32, rate=0.5, rng=Merse
     return Model{T}(nodes, input_size, output_size, nodes_num, weights_num)
 end
 
-# 全ノードのstateをbiasにする
+# InputNode以外の全ノードのstateをbiasにする
 function reset!(model::Model)
-    for i in 1:length(model.nodes)
+    for i in (model.input_size+1):length(model.nodes)
         model.nodes[i].state = model.nodes[i].bias
     end
     nothing
@@ -92,14 +92,14 @@ function (model::Model{T})(input::Array{T, 1}) where T <: Number
         id = popfirst!(middlenode_ids)
         for j in 1:length(model.nodes[id].targets)
             target = model.nodes[i].targets[j]
-            model.nodes[target].state += model.nodes[id].weights[j] * model.nodes[id].state
+            model.nodes[target].state += model.nodes[id].activation_function(model.nodes[id].weights[j] * model.nodes[id].state)
         end
         if typeof(model.nodes[j]) == MiddleNode
             push!(j, middlenode_ids)
         end
     end
 
-    return [model.nodes[i].state for i in (model.input_size+1):(model.input_size+model.output_size)]
+    return [model.nodes[i].activation_function(model.nodes[i].state) for i in (model.input_size+1):(model.input_size+model.output_size)]
 end
 
 mutable struct Species
@@ -261,7 +261,4 @@ function Population(models::Array{Model{T}, 1}, previous_population::Population;
     end
 
     return Population(models, species_set_toReturn, length(species_set_toReturn), previous_population.generation+1)
-end
-
-models = [Model(4, 2) for _ in 1:20]
-Population(models);
+end;
