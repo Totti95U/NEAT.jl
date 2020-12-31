@@ -1,5 +1,7 @@
 using Random
 
+abstract type AbstractEnv end
+# もしくは `using ReinforcementLearningBase` するか (要検討)
 abstract type Node end
 
 mutable struct InputNode{T<:Number} <: Node
@@ -31,6 +33,7 @@ mutable struct Model{T<:Number}
     output_size::Int
     nodes_num::Int
     weights_num::Int
+    score::T
 end
 
 # モデルを作る
@@ -59,8 +62,10 @@ function Model(input_size::Int, output_size::Int; T=Float64, rate=0.5, rng=Merse
         push!(nodes, node)
     end
 
-    return Model{T}(nodes, input_size, output_size, nodes_num, weights_num)
+    return Model{T}(nodes, input_size, output_size, nodes_num, weights_num, T(0))
 end
+
+Model{T}(input_size, output_size; kwargs...) where {T} = Model(input_size, output_size; T=T, kwargs...)
 
 # InputNode以外の全ノードのstateをbiasにする
 function reset!(model::Model)
@@ -81,7 +86,7 @@ function (model::Model{T})(input::Array{T, 1}) where T <: Number
         for j in 1:length(model.nodes[i].targets)
             target = model.nodes[i].targets[j]
             model.nodes[target].state += model.nodes[i].weights[j] * model.nodes[i].state
-            if typeof(model.nodes[j]) == MiddleNode
+            if typeof(model.nodes[j]) <: MiddleNode
                 push!(target, middlenode_ids)
             end
         end
@@ -203,7 +208,7 @@ function Population(models::Array{Model{T}, 1}; compatibility_threshold=3.0, com
         end
     end
 
-    return Population(models, species_set_toReturn, length(species_set_toReturn), 1)
+    return Population{T}(models, species_set_toReturn, length(species_set_toReturn), 1)
 end
 
 # 種を分ける（最初の世代じゃない場合）
@@ -260,5 +265,27 @@ function Population(models::Array{Model{T}, 1}, previous_population::Population;
         push!(species_set_toReturn, new_species)
     end
 
-    return Population(models, species_set_toReturn, length(species_set_toReturn), previous_population.generation+1)
-end;
+    return Population{T}(models, species_set_toReturn, length(species_set_toReturn), previous_population.generation+1)
+end
+
+# 成績を評価
+function evaluate!(model::Model, env::AbstractEnv)
+    while !get_terminal(env)
+        env(model(get_state(env)))
+        model.score += get_reward(env)
+    end
+    nothing
+end
+
+function evaluate!(popu::Population, env::AbstractEnv)
+    bestmodel_id = popu.model_ids[1]
+
+    for model in popu.models
+        evaluate!(model, env)
+        if popu.models[bestmodel_id].score < model.score
+            bestmodel_id = model.id
+        end
+    end
+    
+    return bestmodel_id
+end
