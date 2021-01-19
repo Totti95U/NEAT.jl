@@ -289,3 +289,50 @@ function evaluate!(popu::Population, env::AbstractEnv)
     
     return bestmodel_id
 end
+
+function crossover(parent1::Model, parent2::Model)
+    child = parent1.nodes_num > parent2.nodes_num ? parent1 : parent2
+    small_parent = parent1.nodes_num < parent2.nodes_num ? parent1 : parent2
+
+    # 二つの親の InputNode に共通している weight をランダムに選択する
+    for i in 1:child.input_size
+        weight_ind = findall(x -> (small_parent.nodes[i].targets[x] ∈ child.nodes[i].targets), 1:length(small_parent.nodes[i].targets))
+        for j in weight_ind
+            if rand() < 0.5
+                child.nodes[i].weights[j] = parent1.nodes[i].weights[j]
+            else
+                child.nodes[i].weights[j] = parent2.nodes[i].weights[j]
+            end
+        end
+    end
+
+    # 二つの親の MiddleNode に共通している weight をランダムに選択する
+    for i in (child.input_size+child.output_size+1):child.nodes_num
+        weight_ind = findall(x -> (small_parent.nodes[i].targets[x] ∈ child.nodes[i].targets), 1:length(small_parent.nodes[i].targets))
+        for j in weight_ind
+            if rand() < 0.5
+                child.nodes[i].weights[j] = parent1.nodes[i].weights[j]
+            else
+                child.nodes[i].weights[j] = parent2.nodes[i].weights[j]
+            end
+        end
+    end
+
+    # 小さい parent の InputNode にしかない weight を追加する
+    for i in 1:child.input_size
+        adding_target = findall(x -> !(x ∈ child.nodes[i].targets), small_parent.nodes[i].targets)
+        weight_ind = findall(x -> !(small_parent.nodes[i].targets[x] ∈ child.nodes[i].targets), 1:length(small_parent.nodes[i].targets))
+        append!(child.nodes[i].targets, adding_target)
+        append!(child.nodes[i].weight, small_parent.nodes[i].weight[weight_ind])
+    end
+
+    # 小さい parent の MiddleNode にしかない weight を追加する
+    for i in (child.input_size+child.output_size+1):child.nodes_num
+        adding_target = findall(x -> !(x ∈ child.nodes[i].targets), small_parent.nodes[i].targets)
+        weight_ind = findall(x -> !(small_parent.nodes[i].targets[x] ∈ child.nodes[i].targets), 1:length(small_parent.nodes[i].targets))
+        append!(child.nodes[i].targets, adding_target)
+        append!(child.nodes[i].weight, small_parent.nodes[i].weight[weight_ind])
+    end
+
+    return child
+end
